@@ -1,0 +1,10 @@
+.evidence
+.svelte-kit
+build
+node_modules
+evidence.settings.json
+dev
+.evidence-queries
+static/data
+/artifacts
+src/pages/runtime-generated
