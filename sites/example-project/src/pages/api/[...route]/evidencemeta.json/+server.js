@@ -27,9 +27,7 @@ export const entries = async () => {
 
 /** @type {import("./$types").RequestHandler} */
 export async function GET({ params: { route } }) {
-	const normalizedRoute = route.replace(/^\/+/, '');
-
-	if (normalizedRoute === 'settings') {
+	if (route === '/settings') {
 		const queries = [];
 		return json({ queries });
 	}
@@ -39,18 +37,9 @@ export async function GET({ params: { route } }) {
 	} else {
 		routesDir = path.join('.evidence', 'template', 'src', 'pages');
 	}
-	const routePath = path.join(process.cwd(), routesDir, normalizedRoute, '+page.md');
+	const routePath = path.join(process.cwd(), routesDir, route, '+page.md');
 
-	let content;
-	try {
-		content = await fs.readFile(routePath, 'utf8');
-	} catch (e) {
-		// Non-markdown routes (for example +page.svelte) do not have query metadata files.
-		if (e instanceof Error && 'code' in e && e.code === 'ENOENT') {
-			return json({ queries: [] });
-		}
-		throw e;
-	}
+	const content = await fs.readFile(routePath, 'utf8');
 
 	const partialInjectedContent = preprocessor.injectPartials(content);
 	const queries = preprocessor.extractQueries(partialInjectedContent);

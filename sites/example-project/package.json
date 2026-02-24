@@ -6,9 +6,6 @@
 		"build": "cross-env EVIDENCE_PAGES_DIR=./src/pages NODE_OPTIONS=--max-old-space-size=8192 vite build",
 		"sources": "cross-env EVIDENCE_DATA_DIR=./static/data EVIDENCE_DATA_URL_PREFIX=static/data evidence sources",
 		"preview": "vite preview --port 3000",
-		"artifact:publish": "node ./scripts/artifacts/publish.mjs --dashboard=example",
-		"artifact:serve": "node ./scripts/artifacts/serve.mjs --dashboard=example --port=4175",
-		"artifact:release": "pnpm run build && pnpm run artifact:publish",
 		"test": "vitest"
 	},
 	"type": "module",
