@@ -29,18 +29,21 @@ EVIDENCE_RUNTIME_PUBLIC_BASE_URL=http://localhost:3002 \
 EVIDENCE_MARKDOWN_PAGES_ROOT=/tmp/legion-evidence-shared \
 EVIDENCE_ARTIFACTS_ROOT=/tmp/legion-evidence-shared/artifacts \
 EVIDENCE_PAGES_COMPILED_PATH_PREFIX=/runtime-generated \
-EVIDENCE_RUNTIME_API_TOKEN=dev-token \
-node ./scripts/artifacts/serve.mjs --dashboard legion-dashboard-site --port 3002
+INFISICAL_CLIENT_ID=your-client-id \
+INFISICAL_PROJECT_ID=your-project-id \
+INFISICAL_CLIENT_SECRET=your-client-secret \
+node ./scripts/runtime/start-runtime.mjs --dashboard legion-dashboard-site --port 3002
 ```
 
 Notes:
 - `EVIDENCE_ARTIFACTS_ROOT` is required and must point to your EFS mount path.
+- Runtime startup loads secrets from Infisical `dev` environment.
 
 Trigger release:
 
 ```bash
 curl -X POST http://localhost:3002/api/runtime-dashboards/release \
-  -H 'Authorization: Bearer dev-token' \
+  -H 'Authorization: Bearer <INTERNAL_SERVICE_TOKEN>' \
   -H 'Content-Type: application/json' \
   -d '{"dashboardId":"db_123","markdown":"# Runtime Dashboard"}'
 ```
@@ -48,6 +51,6 @@ curl -X POST http://localhost:3002/api/runtime-dashboards/release \
 Check job:
 
 ```bash
-curl -H 'Authorization: Bearer dev-token' \
+curl -H 'Authorization: Bearer <INTERNAL_SERVICE_TOKEN>' \
   http://localhost:3002/api/runtime-dashboards/release/<jobId>
 ```

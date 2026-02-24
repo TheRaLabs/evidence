@@ -9,6 +9,7 @@
 		"artifact:publish": "node ./scripts/artifacts/publish.mjs --dashboard legion-dashboard-site",
 		"artifact:serve": "node ./scripts/artifacts/serve.mjs --dashboard legion-dashboard-site --port 4175",
 		"artifact:release": "pnpm run build && pnpm run artifact:publish",
+		"runtime:start": "node ./scripts/runtime/start-runtime.mjs --dashboard legion-dashboard-site --port 3002",
 		"runtime:control-api": "node ./scripts/runtime/control-api.mjs",
 		"test": "vitest"
 	},
@@ -32,6 +33,7 @@
 		"@evidence-dev/trino": "workspace:*",
 		"@evidence-dev/universal-sql": "workspace:*",
 		"@fontsource/spectral": "^5.0.3",
+		"@infisical/sdk": "^4.0.6",
 		"@steeze-ui/simple-icons": "^1.7.1",
 		"@steeze-ui/svelte-icon": "1.5.0",
 		"@steeze-ui/tabler-icons": "2.1.1",

@@ -29,7 +29,7 @@ function getConfig() {
 
   return {
     port: Number.parseInt(process.env.EVIDENCE_RUNTIME_API_PORT || '8080', 10),
-    token: process.env.EVIDENCE_RUNTIME_API_TOKEN || '',
+    token: process.env.INTERNAL_SERVICE_TOKEN || '',
     maxMarkdownBytes: Number.parseInt(
       process.env.EVIDENCE_RUNTIME_MAX_MARKDOWN_BYTES ||
         String(DEFAULT_MAX_MARKDOWN_BYTES),

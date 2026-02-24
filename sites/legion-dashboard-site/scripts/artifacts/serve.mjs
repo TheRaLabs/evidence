@@ -124,7 +124,7 @@ async function main() {
   const dashboard = args.dashboard ?? 'example';
   const port = Number.parseInt(args.port ?? '4175', 10);
   const projectRoot = process.cwd();
-  const runtimeApiToken = process.env.EVIDENCE_RUNTIME_API_TOKEN || '';
+  const runtimeApiToken = process.env.INTERNAL_SERVICE_TOKEN || '';
   const runtimeApiEnabled = (process.env.EVIDENCE_RUNTIME_API_ENABLED || 'true') === 'true';
   const maxMarkdownBytes = Number.parseInt(
     process.env.EVIDENCE_RUNTIME_MAX_MARKDOWN_BYTES || String(200 * 1024),
