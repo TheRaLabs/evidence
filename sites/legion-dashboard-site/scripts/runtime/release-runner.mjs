@@ -40,16 +40,13 @@ export function createReleaseRunner({
   artifactDashboard,
   releaseCommand,
 }) {
-  const queue = [];
   let running = false;
 
-  const pump = async () => {
-    if (running) return;
-    const item = queue.shift();
-    if (!item) return;
+  const run = async (job, onUpdate) => {
+    if (running) {
+      throw new Error('release already running');
+    }
     running = true;
-
-    const { job, onUpdate } = item;
     try {
       onUpdate(job.jobId, { status: 'running' });
       await materializeRuntimeRoutes({
@@ -65,14 +62,13 @@ export function createReleaseRunner({
       onUpdate(job.jobId, { status: 'failed', error: reason });
     } finally {
       running = false;
-      void pump();
     }
   };
 
   return {
-    enqueue(job, onUpdate) {
-      queue.push({ job, onUpdate });
-      void pump();
+    isRunning() {
+      return running;
     },
+    run,
   };
 }

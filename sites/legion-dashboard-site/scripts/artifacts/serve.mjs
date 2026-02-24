@@ -155,6 +155,7 @@ async function main() {
   const artifactsRoot = path.join(artifactBaseRoot, dashboard);
   const currentFile = path.join(artifactsRoot, 'current.json');
   const jobs = new Map();
+  let activeJobId = undefined;
 
   if (!fs.existsSync(currentFile)) {
     throw new Error(`current.json not found at ${currentFile}. Publish an artifact first.`);
@@ -171,11 +172,18 @@ async function main() {
   const updateJob = (jobId, patch) => {
     const current = jobs.get(jobId);
     if (!current) return;
-    jobs.set(jobId, {
+    const next = {
       ...current,
       ...patch,
       updatedAt: new Date().toISOString(),
-    });
+    };
+    jobs.set(jobId, next);
+    if (
+      activeJobId === jobId &&
+      (next.status === 'succeeded' || next.status === 'failed')
+    ) {
+      activeJobId = undefined;
+    }
   };
 
   const validateToken = (req) => {
@@ -249,10 +257,22 @@ async function main() {
             return sendJson(res, 202, toJobResponse(job));
           }
 
+          if (releaseRunner.isRunning()) {
+            const activeJob = activeJobId ? jobs.get(activeJobId) : undefined;
+            if (
+              activeJob &&
+              activeJob.dashboardId === dashboardId &&
+              activeJob.slug === slug
+            ) {
+              return sendJson(res, 202, toJobResponse(activeJob));
+            }
+            return sendJson(res, 409, { error: 'release already running' });
+          }
+
           const job = {
             jobId: createJobId(),
             dashboardId,
-            status: 'queued',
+            status: 'running',
             slug,
             compiledPath,
             pageUrl,
@@ -262,7 +282,8 @@ async function main() {
             updatedAt: new Date().toISOString(),
           };
           jobs.set(job.jobId, job);
-          releaseRunner.enqueue(job, updateJob);
+          activeJobId = job.jobId;
+          void releaseRunner.run(job, updateJob);
           return sendJson(res, 202, toJobResponse(job));
         }
 

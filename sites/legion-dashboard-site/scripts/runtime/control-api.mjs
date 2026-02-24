@@ -127,6 +127,7 @@ function resolveCompiledRouteIndexPath({
 async function main() {
   const config = getConfig();
   const jobs = new Map();
+  let activeJobId = undefined;
   const releaseRunner = createReleaseRunner({
     projectRoot: config.projectRoot,
     markdownPagesRoot: config.markdownPagesRoot,
@@ -138,11 +139,18 @@ async function main() {
   const updateJob = (jobId, patch) => {
     const current = jobs.get(jobId);
     if (!current) return;
-    jobs.set(jobId, {
+    const next = {
       ...current,
       ...patch,
       updatedAt: new Date().toISOString(),
-    });
+    };
+    jobs.set(jobId, next);
+    if (
+      activeJobId === jobId &&
+      (next.status === 'succeeded' || next.status === 'failed')
+    ) {
+      activeJobId = undefined;
+    }
   };
 
   const server = http.createServer(async (req, res) => {
@@ -219,10 +227,22 @@ async function main() {
           return sendJson(res, 202, toJobResponse(job));
         }
 
+        if (releaseRunner.isRunning()) {
+          const activeJob = activeJobId ? jobs.get(activeJobId) : undefined;
+          if (
+            activeJob &&
+            activeJob.dashboardId === dashboardId &&
+            activeJob.slug === slug
+          ) {
+            return sendJson(res, 202, toJobResponse(activeJob));
+          }
+          return sendJson(res, 409, { error: 'release already running' });
+        }
+
         const job = {
           jobId: createJobId(),
           dashboardId,
-          status: 'queued',
+          status: 'running',
           slug,
           compiledPath,
           pageUrl,
@@ -233,7 +253,8 @@ async function main() {
         };
 
         jobs.set(job.jobId, job);
-        releaseRunner.enqueue(job, updateJob);
+        activeJobId = job.jobId;
+        void releaseRunner.run(job, updateJob);
         return sendJson(res, 202, toJobResponse(job));
       }
 
