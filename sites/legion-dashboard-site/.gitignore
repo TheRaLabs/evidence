@@ -8,3 +8,4 @@ dev
 static/data
 /artifacts
 src/pages/runtime-generated
+.env.prod
