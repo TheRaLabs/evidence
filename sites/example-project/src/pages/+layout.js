@@ -89,9 +89,7 @@ export const load = async ({ fetch, route, params, url }) => {
 	const [{ customFormattingSettings }, pagesManifest, evidencemeta] = await Promise.all([
 		fetch(addBasePath('/api/customFormattingSettings.json/GET.json')).then((x) => x.json()),
 		fetch(addBasePath('/api/pagesManifest.json')).then((x) => x.json()),
-		fetch(addBasePath(`/api/${route.id}/evidencemeta.json`))
-			.then((x) => x.json())
-			.catch(() => ({ queries: [] }))
+		Promise.resolve({ queries: [] })
 	]);
 
 	const routeHash = md5(route.id);

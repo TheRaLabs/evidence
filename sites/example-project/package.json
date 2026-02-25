@@ -1,11 +1,15 @@
 {
-	"name": "@evidence-dev/components",
+	"name": "@evidence-dev/legion-dashboard-site",
 	"version": "3.5.56",
 	"scripts": {
 		"dev": "cross-env EVIDENCE_PAGES_DIR=./src/pages EVIDENCE_DATA_DIR=./static/data EVIDENCE_DATA_URL_PREFIX=static/data vite dev --port 3000",
 		"build": "cross-env EVIDENCE_PAGES_DIR=./src/pages NODE_OPTIONS=--max-old-space-size=8192 vite build",
 		"sources": "cross-env EVIDENCE_DATA_DIR=./static/data EVIDENCE_DATA_URL_PREFIX=static/data evidence sources",
 		"preview": "vite preview --port 3000",
+		"artifact:publish": "node --env-file=.env.prod ./scripts/artifacts/publish.mjs --dashboard legion-dashboard-site",
+		"artifact:serve": "node --env-file=.env.prod ./scripts/artifacts/serve.mjs --dashboard legion-dashboard-site --port 4175",
+		"artifact:release": "pnpm run build && pnpm run artifact:publish",
+		"runtime:start": "node --env-file=.env.prod ./scripts/runtime/start-runtime.mjs --dashboard legion-dashboard-site --port 3002",
 		"test": "vitest"
 	},
 	"type": "module",
@@ -28,6 +32,7 @@
 		"@evidence-dev/trino": "workspace:*",
 		"@evidence-dev/universal-sql": "workspace:*",
 		"@fontsource/spectral": "^5.0.3",
+		"@infisical/sdk": "^4.0.6",
 		"@steeze-ui/simple-icons": "^1.7.1",
 		"@steeze-ui/svelte-icon": "1.5.0",
 		"@steeze-ui/tabler-icons": "2.1.1",
