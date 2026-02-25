@@ -1,0 +1,3 @@
+```sql DUMMYQUERY
+SELECT 5
+```
