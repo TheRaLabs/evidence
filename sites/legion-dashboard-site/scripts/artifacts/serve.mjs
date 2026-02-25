@@ -240,7 +240,10 @@ async function main() {
   const validateToken = (req) => {
     if (!runtimeApiToken) return true;
     const auth = req.headers.authorization || '';
-    return auth === `Bearer ${runtimeApiToken}`;
+    const expected = `Bearer ${runtimeApiToken}`;
+    const authDigest = crypto.createHash('sha256').update(auth).digest();
+    const expectedDigest = crypto.createHash('sha256').update(expected).digest();
+    return crypto.timingSafeEqual(authDigest, expectedDigest);
   };
 
   const server = http.createServer(async (req, res) => {
@@ -297,7 +300,7 @@ async function main() {
             'index.html',
           );
 
-          if (fs.existsSync(existingRoutePath)) {
+          if (await fileExists(existingRoutePath)) {
             const job = {
               jobId: createJobId(),
               dashboardId,
