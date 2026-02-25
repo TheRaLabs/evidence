@@ -2,6 +2,13 @@
 import { spawn } from 'node:child_process';
 import { InfisicalSDK } from '@infisical/sdk';
 
+/**
+ * Parse CLI args in a simple `--key value` / `--flag` style.
+ *
+ * Examples:
+ * - `--port 3002` -> { port: '3002' }
+ * - `--dry-run`   -> { 'dry-run': 'true' }
+ */
 function parseArgs(argv) {
   const args = {};
   for (let i = 0; i < argv.length; i += 1) {
@@ -14,6 +21,16 @@ function parseArgs(argv) {
   return args;
 }
 
+/**
+ * Load secrets from Infisical into `process.env` only when missing locally.
+ *
+ * Required bootstrap credentials are read from:
+ * - INFISICAL_CLIENT_ID
+ * - INFISICAL_CLIENT_SECRET
+ * - INFISICAL_PROJECT_ID
+ *
+ * Existing environment variables are preserved to support local overrides.
+ */
 async function loadInfisicalSecrets() {
   const clientId = process.env.INFISICAL_CLIENT_ID;
   const clientSecret = process.env.INFISICAL_CLIENT_SECRET;
@@ -45,6 +62,12 @@ async function loadInfisicalSecrets() {
   }
 }
 
+/**
+ * Run a child process while inheriting stdio and environment.
+ *
+ * This keeps command output visible and ensures downstream scripts receive the
+ * same env context (including injected secrets).
+ */
 async function runCommand(command, args) {
   await new Promise((resolve, reject) => {
     const child = spawn(command, args, {
@@ -59,6 +82,15 @@ async function runCommand(command, args) {
   });
 }
 
+/**
+ * Runtime bootstrap entrypoint.
+ *
+ * Flow:
+ * 1) parse dashboard/port arguments
+ * 2) ensure INTERNAL_SERVICE_TOKEN exists (local env first, Infisical fallback)
+ * 3) publish latest artifact
+ * 4) start artifact server process
+ */
 async function main() {
   const args = parseArgs(process.argv.slice(2));
   const dashboard = args.dashboard ?? 'legion-dashboard-site';

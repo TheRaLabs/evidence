@@ -3,18 +3,60 @@ import fs from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 
+// Runtime markdown pages are generated under this URL prefix by default.
+// Example output path:
+//   /runtime-generated/<dashboard-id>-<content-hash>
+// This keeps runtime-generated pages isolated from static pages in the project.
 const DEFAULT_PREFIX = '/runtime-generated';
 
+/**
+ * Normalize the runtime route prefix used for generated markdown routes.
+ *
+ * Why normalization is needed:
+ * - callers may pass empty strings, missing slashes, or trailing slashes
+ * - downstream path joins expect a stable, slash-prefixed format
+ *
+ * Output guarantees:
+ * - never empty
+ * - always starts with '/'
+ * - never ends with '/'
+ */
 export function normalizeCompiledPrefix(rawPrefix) {
   const trimmed = (rawPrefix || DEFAULT_PREFIX).trim().replace(/\/+$/, '');
   if (!trimmed) return DEFAULT_PREFIX;
   return trimmed.startsWith('/') ? trimmed : `/${trimmed}`;
 }
 
+/**
+ * Convert any dashboard id into a filesystem/URL-safe identifier.
+ *
+ * Allowed characters:
+ * - letters
+ * - numbers
+ * - underscore
+ * - hyphen
+ *
+ * Any unsupported character is replaced with '_', so we can safely use the
+ * id in:
+ * - markdown file names
+ * - route segment names
+ * - cleanup prefix matching
+ */
 export function safeDashboardId(input) {
   return String(input || 'dashboard').replace(/[^a-zA-Z0-9_-]/g, '_');
 }
 
+/**
+ * Build a deterministic slug for a dashboard markdown snapshot.
+ *
+ * Slug format:
+ *   <safe-dashboard-id>-<sha256(markdown).slice(0, 12)>
+ *
+ * The hash ties slug identity to markdown content, which gives us:
+ * - stable slugs for identical content
+ * - natural cache busting when content changes
+ * - low collision risk while keeping route length short
+ */
 export function computeSlug(dashboardId, markdown) {
   const safeId = safeDashboardId(dashboardId);
   const hash = crypto
@@ -25,12 +67,35 @@ export function computeSlug(dashboardId, markdown) {
   return `${safeId}-${hash}`;
 }
 
+/**
+ * Atomically write file contents to avoid partially written files.
+ *
+ * Strategy:
+ * 1) write to a temporary sibling file
+ * 2) rename temp file to final target path
+ *
+ * `rename` on the same filesystem is atomic on modern OSes, so readers either
+ * see the old complete file or the new complete file, never a half-written file.
+ */
 async function writeFileAtomic(filePath, content) {
   const tmpPath = `${filePath}.tmp-${Date.now()}-${Math.random().toString(16).slice(2)}`;
   await fs.writeFile(tmpPath, content, 'utf8');
   await fs.rename(tmpPath, filePath);
 }
 
+/**
+ * Persist a runtime markdown snapshot and return route metadata.
+ *
+ * High-level flow:
+ * 1) normalize prefix and compute stable slug
+ * 2) ensure runtime directory exists
+ * 3) atomically write `<slug>.md`
+ * 4) clean up older snapshots for the same dashboard
+ *
+ * Retention behavior:
+ * - keeps up to `retainPerDashboard` newest files per dashboard
+ * - always keeps the file for `currentSlug` as an extra safety guard
+ */
 export async function writeRuntimeMarkdown({
   dashboardId,
   markdown,
@@ -64,6 +129,18 @@ export async function writeRuntimeMarkdown({
   };
 }
 
+/**
+ * Remove stale markdown snapshot files for one dashboard.
+ *
+ * Only files matching `<safeDashboardId>-*.md` are considered.
+ * Files are sorted by `mtime` descending (newest first), then old files beyond
+ * the retain threshold are removed.
+ *
+ * Notes:
+ * - cleanup is best-effort and uses `force: true` to avoid hard failures when
+ *   files are already gone
+ * - retainCount < 1 means "skip cleanup" to avoid accidental full deletion
+ */
 async function cleanupOlderDashboardMarkdownFiles({
   runtimeDir,
   safeDashboardId,
@@ -101,6 +178,22 @@ async function cleanupOlderDashboardMarkdownFiles({
   );
 }
 
+/**
+ * Materialize Svelte route directories from runtime markdown files.
+ *
+ * Input:
+ * - markdown files under `<markdownPagesRoot>/<normalizedPrefix>/*.md`
+ *
+ * Output:
+ * - route directories under `<projectRoot>/src/pages/<normalizedPrefix>/<slug>/+page.md`
+ *
+ * Synchronization behavior:
+ * - for each runtime markdown file, create/update corresponding route page
+ * - remove route directories that no longer have a source markdown file
+ *
+ * This function is intended to be rerun repeatedly so the generated route tree
+ * stays aligned with current runtime markdown artifacts.
+ */
 export async function materializeRuntimeRoutes({
   projectRoot,
   markdownPagesRoot,

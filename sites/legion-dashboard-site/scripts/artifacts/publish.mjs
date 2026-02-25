@@ -5,6 +5,10 @@ import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { execSync } from 'node:child_process';
 
+/**
+ * Parse CLI args in `--key value` / `--flag` form.
+ * Values are kept as strings for predictable downstream handling.
+ */
 function parseArgs(argv) {
   const args = {};
   for (let i = 0; i < argv.length; i += 1) {
@@ -17,6 +21,11 @@ function parseArgs(argv) {
   return args;
 }
 
+/**
+ * Recursively collect all file paths under a directory.
+ *
+ * Used by post-build rewriting logic to locate every generated HTML file.
+ */
 async function walkFiles(dir) {
   const entries = await fs.readdir(dir, { withFileTypes: true });
   const files = [];
@@ -31,6 +40,10 @@ async function walkFiles(dir) {
   return files;
 }
 
+/**
+ * Best-effort short git SHA for traceability in artifact metadata.
+ * Falls back to `nogit` when git metadata is unavailable.
+ */
 function getGitSha(cwd) {
   try {
     return execSync('git rev-parse --short HEAD', { cwd, stdio: ['ignore', 'pipe', 'ignore'] })
@@ -41,6 +54,13 @@ function getGitSha(cwd) {
   }
 }
 
+/**
+ * Rewrite adapter-static asset references so versioned artifacts are immutable.
+ *
+ * Rewrites common `_app` path patterns to:
+ *   /assets/<versionHash>/...
+ * This decouples HTML routing from hashed static assets and allows long cache.
+ */
 async function rewriteHtmlAssetPaths(versionDir, versionHash) {
   const files = await walkFiles(versionDir);
   const htmlFiles = files.filter((file) => file.endsWith('.html'));
@@ -60,12 +80,27 @@ async function rewriteHtmlAssetPaths(versionDir, versionHash) {
   }
 }
 
+/**
+ * Atomically write JSON payloads by temp-file + rename.
+ *
+ * Prevents partially written `current.json` pointers during process interruption.
+ */
 async function writeJsonAtomic(filePath, payload) {
   const tmpPath = `${filePath}.tmp-${process.pid}-${Date.now()}`;
   await fs.writeFile(tmpPath, JSON.stringify(payload, null, 2), 'utf8');
   await fs.rename(tmpPath, filePath);
 }
 
+/**
+ * Publish a built dashboard into versioned artifact storage.
+ *
+ * High-level flow:
+ * 1) validate build directory and artifact root
+ * 2) create a unique version hash
+ * 3) copy build output to temp dir
+ * 4) rewrite HTML asset paths to versioned `/assets/<hash>/...`
+ * 5) atomically promote temp dir and update `current.json`
+ */
 async function main() {
   const args = parseArgs(process.argv.slice(2));
   const dashboard = args.dashboard ?? 'example';

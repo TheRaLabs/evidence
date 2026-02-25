@@ -7,6 +7,9 @@ import crypto from 'node:crypto';
 import { writeRuntimeMarkdown, normalizeCompiledPrefix } from '../runtime/markdown-materializer.mjs';
 import { createReleaseRunner } from '../runtime/release-runner.mjs';
 
+/**
+ * Parse CLI args from `--key value` / `--flag` tokens.
+ */
 function parseArgs(argv) {
   const args = {};
   for (let i = 0; i < argv.length; i += 1) {
@@ -19,6 +22,10 @@ function parseArgs(argv) {
   return args;
 }
 
+/**
+ * Read and parse JSON request body.
+ * Returns `{}` for empty payloads.
+ */
 async function readJsonBody(req) {
   const chunks = [];
   for await (const chunk of req) {
@@ -28,6 +35,8 @@ async function readJsonBody(req) {
   return raw ? JSON.parse(raw) : {};
 }
 
+// Minimal extension -> MIME map used for serving artifact files.
+// Unknown extensions fall back to `application/octet-stream`.
 const MIME_BY_EXT = {
   '.html': 'text/html; charset=utf-8',
   '.js': 'text/javascript; charset=utf-8',
@@ -47,6 +56,11 @@ const MIME_BY_EXT = {
   '.parquet': 'application/octet-stream',
 };
 
+/**
+ * Resolve a relative path under `baseDir` and reject path traversal.
+ *
+ * Returns `null` when the computed path escapes the base directory.
+ */
 function resolveInside(baseDir, relativePath) {
   const resolved = path.resolve(baseDir, relativePath);
   const normalizedBase = `${path.resolve(baseDir)}${path.sep}`;
@@ -56,6 +70,9 @@ function resolveInside(baseDir, relativePath) {
   return resolved;
 }
 
+/**
+ * Read current artifact pointer and validate `versionHash`.
+ */
 async function readCurrent(currentFile) {
   const raw = await fsp.readFile(currentFile, 'utf8');
   const parsed = JSON.parse(raw);
@@ -65,10 +82,16 @@ async function readCurrent(currentFile) {
   return parsed;
 }
 
+/**
+ * Create a unique id for async release jobs.
+ */
 function createJobId() {
   return crypto.randomUUID();
 }
 
+/**
+ * Return the stable API response shape for release job status.
+ */
 function toJobResponse(job) {
   return {
     jobId: job.jobId,
@@ -81,6 +104,9 @@ function toJobResponse(job) {
   };
 }
 
+/**
+ * Best-effort file existence helper for async checks.
+ */
 async function fileExists(filePath) {
   try {
     const stat = await fsp.stat(filePath);
@@ -90,11 +116,17 @@ async function fileExists(filePath) {
   }
 }
 
+/**
+ * Send a raw response with explicit status/headers.
+ */
 function send(res, status, body, headers = {}) {
   res.writeHead(status, headers);
   res.end(body);
 }
 
+/**
+ * Send JSON with no-store cache policy for control/status endpoints.
+ */
 function sendJson(res, status, payload) {
   send(res, status, JSON.stringify(payload), {
     'Content-Type': 'application/json; charset=utf-8',
@@ -102,6 +134,12 @@ function sendJson(res, status, payload) {
   });
 }
 
+/**
+ * Stream a file with cache semantics tuned by content type:
+ * - immutable assets: very long cache
+ * - html: no-cache
+ * - other files: short public cache
+ */
 function streamFile(res, filePath, { immutable = false } = {}) {
   const ext = path.extname(filePath).toLowerCase();
   const contentType = MIME_BY_EXT[ext] ?? 'application/octet-stream';
@@ -119,6 +157,15 @@ function streamFile(res, filePath, { immutable = false } = {}) {
   fs.createReadStream(filePath).pipe(res);
 }
 
+/**
+ * Artifact server entrypoint.
+ *
+ * Responsibilities:
+ * - serve currently active dashboard artifact version
+ * - expose runtime release control API (optional)
+ * - validate and persist runtime markdown, then trigger release pipeline
+ * - return job status for async releases
+ */
 async function main() {
   const args = parseArgs(process.argv.slice(2));
   const dashboard = args.dashboard ?? 'example';
@@ -169,6 +216,8 @@ async function main() {
     releaseCommand,
   });
 
+  // Centralized job mutation helper to keep timestamps and active-job tracking
+  // consistent across success/failure paths.
   const updateJob = (jobId, patch) => {
     const current = jobs.get(jobId);
     if (!current) return;
@@ -186,6 +235,8 @@ async function main() {
     }
   };
 
+  // If runtime token is configured, all runtime control endpoints require
+  // `Authorization: Bearer <token>`. Static artifact serving stays public.
   const validateToken = (req) => {
     if (!runtimeApiToken) return true;
     const auth = req.headers.authorization || '';
@@ -198,11 +249,17 @@ async function main() {
       const url = new URL(req.url ?? '/', `http://${host}`);
       const pathname = decodeURIComponent(url.pathname);
 
+      // Lightweight health check for infra probes.
       if (pathname === '/_health') {
         return send(res, 200, 'ok', { 'Content-Type': 'text/plain; charset=utf-8' });
       }
 
       if (runtimeApiEnabled) {
+        // Runtime release trigger endpoint:
+        // - validates token/body/size
+        // - writes runtime markdown snapshot
+        // - short-circuits if route already exists in current version
+        // - otherwise starts async release job
         if (req.method === 'POST' && pathname === '/api/runtime-dashboards/release') {
           if (!validateToken(req)) {
             return sendJson(res, 401, { error: 'Unauthorized' });
@@ -287,6 +344,7 @@ async function main() {
           return sendJson(res, 202, toJobResponse(job));
         }
 
+        // Runtime release status polling endpoint.
         const releaseStatusMatch = pathname.match(
           /^\/api\/runtime-dashboards\/release\/([^/]+)$/,
         );
@@ -304,6 +362,7 @@ async function main() {
         }
       }
 
+      // Current artifact pointer for clients/operators.
       if (pathname === '/current.json') {
         const raw = await fsp.readFile(currentFile, 'utf8');
         return send(res, 200, raw, { 'Content-Type': 'application/json; charset=utf-8' });
@@ -330,6 +389,10 @@ async function main() {
         return send(res, 503, `Current version directory missing: ${current.versionHash}`);
       }
 
+      // Candidate resolution order:
+      // 1) exact path
+      // 2) `.html` sibling for extensionless path
+      // 3) nested `index.html` for directory-like path
       const cleanPath = pathname.replace(/^\/+/, '');
       const candidates = [];
 

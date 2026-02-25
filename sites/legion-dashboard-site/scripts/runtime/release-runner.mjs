@@ -3,6 +3,12 @@ import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { materializeRuntimeRoutes } from './markdown-materializer.mjs';
 
+/**
+ * Execute a shell command and stream stdio directly to the current process.
+ *
+ * This is used for release/build commands so operators can see live logs in the
+ * same terminal where this script runs.
+ */
 async function runShellCommand(command, cwd) {
   await new Promise((resolve, reject) => {
     const child = spawn(command, {
@@ -19,6 +25,13 @@ async function runShellCommand(command, cwd) {
   });
 }
 
+/**
+ * Read the currently served artifact version from:
+ *   <EVIDENCE_ARTIFACTS_ROOT>/<dashboard>/current.json
+ *
+ * The return value is the version hash that the artifact server should now
+ * expose after a successful release command.
+ */
 async function readCurrentVersionHash(projectRoot, artifactDashboard) {
   const artifactBaseRoot = process.env.EVIDENCE_ARTIFACTS_ROOT?.trim();
   if (!artifactBaseRoot) {
@@ -33,6 +46,18 @@ async function readCurrentVersionHash(projectRoot, artifactDashboard) {
   return parsed.versionHash;
 }
 
+/**
+ * Build a single-flight release runner.
+ *
+ * Responsibilities:
+ * - enforce one release at a time (`running` guard)
+ * - materialize runtime markdown routes before release
+ * - execute the configured release command
+ * - read and publish resulting version hash through job updates
+ *
+ * The returned `run(job, onUpdate)` function updates lifecycle states:
+ * `running` -> (`succeeded` with versionHash | `failed` with error)
+ */
 export function createReleaseRunner({
   projectRoot,
   markdownPagesRoot,
