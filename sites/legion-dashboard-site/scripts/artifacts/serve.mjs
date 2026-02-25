@@ -117,6 +117,18 @@ async function fileExists(filePath) {
 }
 
 /**
+ * Best-effort path existence helper for files or directories.
+ */
+async function pathExists(filePath) {
+  try {
+    await fsp.access(filePath);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Send a raw response with explicit status/headers.
  */
 function send(res, status, body, headers = {}) {
@@ -204,7 +216,7 @@ async function main() {
   const jobs = new Map();
   let activeJobId = undefined;
 
-  if (!fs.existsSync(currentFile)) {
+  if (!(await fileExists(currentFile))) {
     throw new Error(`current.json not found at ${currentFile}. Publish an artifact first.`);
   }
 
@@ -388,7 +400,7 @@ async function main() {
       const current = await readCurrent(currentFile);
       const versionDir = path.join(artifactsRoot, current.versionHash);
 
-      if (!fs.existsSync(versionDir)) {
+      if (!(await pathExists(versionDir))) {
         return send(res, 503, `Current version directory missing: ${current.versionHash}`);
       }
 

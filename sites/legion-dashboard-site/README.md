@@ -5,13 +5,13 @@ This is a dedicated Evidence site for runtime markdown releases only.
 ## Run Locally
 
 ```bash
-pnpm -C /Users/yuhanmin/legion-2/evidence/sites/legion-dashboard-site dev
+pnpm --filter @evidence-dev/legion-dashboard-site dev
 ```
 
 ## Build + Publish Artifact
 
 ```bash
-pnpm -C /Users/yuhanmin/legion-2/evidence/sites/legion-dashboard-site artifact:release
+pnpm --filter @evidence-dev/legion-dashboard-site artifact:release
 ```
 
 What this does:
@@ -23,7 +23,7 @@ What this does:
 ## Serve Current Version (+ Runtime API)
 
 ```bash
-pnpm -C /Users/yuhanmin/legion-2/evidence/sites/legion-dashboard-site runtime:start
+pnpm --filter @evidence-dev/legion-dashboard-site runtime:start
 ```
 
 Notes:

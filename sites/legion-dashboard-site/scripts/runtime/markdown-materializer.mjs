@@ -1,6 +1,5 @@
 import crypto from 'node:crypto';
 import fs from 'node:fs/promises';
-import { existsSync } from 'node:fs';
 import path from 'node:path';
 
 // Runtime markdown pages are generated under this URL prefix by default.
@@ -211,8 +210,13 @@ export async function materializeRuntimeRoutes({
   );
 
   await fs.mkdir(targetBaseDir, { recursive: true });
-  if (!existsSync(runtimeDir)) {
-    return { slugs: [] };
+  try {
+    await fs.access(runtimeDir);
+  } catch (error) {
+    if (error && error.code === 'ENOENT') {
+      return { slugs: [] };
+    }
+    throw error;
   }
 
   const entries = await fs.readdir(runtimeDir, { withFileTypes: true });
